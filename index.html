@@ -14,6 +14,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Ukrainian Night Tarot">
 
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3">
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -55,14 +59,17 @@
       background: black;
       color: white;
       display: none;
-      flex-direction: column; /* Змінено на column, щоб текст та іконка були один під одним */
+      flex-direction: column;
+      /* Змінено на column, щоб текст та іконка були один під одним */
       align-items: center;
       justify-content: center;
       z-index: 9999;
-      font-size: 22px; /* Трохи зменшено, щоб гарантовано влазило на маленькі екрани */
+      font-size: 22px;
+      /* Трохи зменшено, щоб гарантовано влазило на маленькі екрани */
       text-align: center;
       padding: 30px;
-      box-sizing: border-box; /* Виправляє обрізання тексту, враховуючи падінги всередині ширини */
+      box-sizing: border-box;
+      /* Виправляє обрізання тексту, враховуючи падінги всередині ширини */
       font-family: sans-serif;
     }
 
@@ -72,7 +79,8 @@
       height: 70px;
       border: 3px solid white;
       border-radius: 6px;
-      margin-top: 25px; /* Відступ під текстом */
+      margin-top: 25px;
+      /* Відступ під текстом */
       position: relative;
       animation: rotatePhone 2.5s ease-in-out infinite;
     }
@@ -92,13 +100,19 @@
 
     /* Анімація повороту екрана */
     @keyframes rotatePhone {
-      0%, 10% {
+
+      0%,
+      10% {
         transform: rotate(0deg);
       }
-      40%, 60% {
+
+      40%,
+      60% {
         transform: rotate(-90deg);
       }
-      90%, 100% {
+
+      90%,
+      100% {
         transform: rotate(0deg);
       }
     }
