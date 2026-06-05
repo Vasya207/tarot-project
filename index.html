@@ -55,19 +55,61 @@
       background: black;
       color: white;
       display: none;
+      flex-direction: column; /* Змінено на column, щоб текст та іконка були один під одним */
       align-items: center;
       justify-content: center;
       z-index: 9999;
-      font-size: 24px;
+      font-size: 22px; /* Трохи зменшено, щоб гарантовано влазило на маленькі екрани */
       text-align: center;
-      padding: 20px;
+      padding: 30px;
+      box-sizing: border-box; /* Виправляє обрізання тексту, враховуючи падінги всередині ширини */
+      font-family: sans-serif;
+    }
+
+    /* Стилі для іконки телефону */
+    .phone-icon {
+      width: 40px;
+      height: 70px;
+      border: 3px solid white;
+      border-radius: 6px;
+      margin-top: 25px; /* Відступ під текстом */
+      position: relative;
+      animation: rotatePhone 2.5s ease-in-out infinite;
+    }
+
+    /* Кнопка "Home" або динамік на іконці телефону для реалістичності */
+    .phone-icon::after {
+      content: '';
+      position: absolute;
+      bottom: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 6px;
+      height: 6px;
+      border: 1px solid white;
+      border-radius: 50%;
+    }
+
+    /* Анімація повороту екрана */
+    @keyframes rotatePhone {
+      0%, 10% {
+        transform: rotate(0deg);
+      }
+      40%, 60% {
+        transform: rotate(-90deg);
+      }
+      90%, 100% {
+        transform: rotate(0deg);
+      }
     }
   </style>
 </head>
 
 <body>
+  <!-- Оновлений блок із текстом та іконкою -->
   <div id="rotate-overlay">
-    Please turn your device horizontally.
+    <div>Please turn your device horizontally.</div>
+    <div class="phone-icon"></div>
   </div>
 
   <div id="unity-container" class="unity-desktop">
@@ -89,12 +131,6 @@
   <script>
     var canvas = document.querySelector("#unity-canvas");
 
-    // Shows a temporary message banner/ribbon for a few seconds, or
-    // a permanent error message on top of the canvas if type=='error'.
-    // If type=='warning', a yellow highlight color is used.
-    // Modify or remove this function to customize the visually presented
-    // way that non-critical warnings and error messages are presented to the
-    // user.
     function unityShowBanner(msg, type) {
       var warningBanner = document.querySelector("#unity-warning");
       function updateBannerVisibility() {
@@ -126,45 +162,11 @@
       productName: "TarotCards2",
       productVersion: "0.1",
       showBanner: unityShowBanner,
-      // errorHandler: function(err, url, line) {
-      //    alert("error " + err + " occurred at line " + line);
-      //    // Return 'true' if you handled this error and don't want Unity
-      //    // to process it further, 'false' otherwise.
-      //    return true;
-      // },
     };
 
-    // By default, Unity keeps WebGL canvas render target size matched with
-    // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-    // Set this to false if you want to decouple this synchronization from
-    // happening inside the engine, and you would instead like to size up
-    // the canvas DOM size and WebGL render target sizes yourself.
-    // config.matchWebGLToCanvasSize = false;
-
-    // If you would like all file writes inside Unity Application.persistentDataPath
-    // directory to automatically persist so that the contents are remembered when
-    // the user revisits the site the next time, uncomment the following line:
-    // config.autoSyncPersistentDataPath = true;
-    // This autosyncing is currently not the default behavior to avoid regressing
-    // existing user projects that might rely on the earlier manual
-    // JS_FileSystem_Sync() behavior, but in future Unity version, this will be
-    // expected to change.
-
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-      // Mobile device style: fill the whole browser client area with the game canvas:
-
       document.querySelector("#unity-container").className = "unity-mobile";
       canvas.className = "unity-mobile";
-
-      // To lower canvas resolution on mobile devices to gain some
-      // performance, uncomment the following line:
-      // config.devicePixelRatio = 1;
-
-
-    } else {
-      // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
-      //canvas.style.width = "1920px";
-      //canvas.style.height = "1080px";
     }
 
     document.querySelector("#unity-loading-bar").style.display = "block";
@@ -179,7 +181,6 @@
         document.querySelector("#unity-fullscreen-button").onclick = () => {
           unityInstance.SetFullscreen(1);
         };
-
       }).catch((message) => {
         alert(message);
       });
@@ -191,11 +192,9 @@
       const overlay = document.getElementById("rotate-overlay");
 
       if (window.innerHeight > window.innerWidth) {
-        // portrait
         overlay.style.display = "flex";
         document.getElementById("unity-container").style.display = "none";
       } else {
-        // landscape
         overlay.style.display = "none";
         document.getElementById("unity-container").style.display = "block";
       }
@@ -204,9 +203,7 @@
     window.addEventListener("resize", handleOrientation);
     window.addEventListener("orientationchange", handleOrientation);
 
-    // виклик при старті
     handleOrientation();
-
   </script>
 </body>
 
