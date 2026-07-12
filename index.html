@@ -20,7 +20,7 @@
 
   <link rel="apple-touch-icon" href="apple-touch-icon.png?v=6">
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 
   <link rel="icon" href="favicon.ico">
   <link rel="stylesheet" href="TemplateData/style.css">
@@ -35,14 +35,7 @@
       background: black;
     }
 
-    /* Size is driven from JS (see applyViewportSize) using visualViewport,
-       because 100vh/% are unreliable in iOS standalone PWAs across
-       orientation changes and cause a touch-vs-render offset. These are
-       only fallbacks before the first JS pass runs. */
     #unity-container {
-      position: fixed;
-      top: 0;
-      left: 0;
       width: 100vw;
       height: 100vh;
     }
@@ -148,38 +141,6 @@
 
   <script>
     var canvas = document.querySelector("#unity-canvas");
-    var unityInstance = null;
-
-    // === ROOT-CAUSE FIX =====================================================
-    // Unity's WebGL runtime reports its screen/orientation size to the engine
-    // from window.innerWidth/innerHeight (JS_ScreenOrientation_eventHandler in
-    // Build_7.framework.js). It uses that value for Screen.height, which drives
-    // the touch-Y flip into game space. It renders, however, into a canvas
-    // sized from canvas.getBoundingClientRect() — a DIFFERENT source.
-    //
-    // In an installed standalone PWA on iOS, window.innerHeight returns a
-    // stale/incorrect value after an orientation change (it does not self-
-    // correct), while the CSS layout viewport (documentElement.clientHeight)
-    // updates correctly. Result: the scene renders in the right place but every
-    // touch is flipped using the wrong height -> a constant downward offset.
-    // (In a normal browser tab innerHeight is correct, so it only breaks in the
-    // installed PWA, and only after rotating.)
-    //
-    // Force innerWidth/innerHeight to track the layout viewport so the value
-    // Unity consumes matches the canvas it actually renders into. Must run
-    // before the Unity loader executes.
-    (function alignViewportMetricsForPWA() {
-      function layoutW() { return document.documentElement.clientWidth || window.screen.width; }
-      function layoutH() { return document.documentElement.clientHeight || window.screen.height; }
-      try {
-        Object.defineProperty(window, "innerWidth", { configurable: true, get: layoutW });
-        Object.defineProperty(window, "innerHeight", { configurable: true, get: layoutH });
-      } catch (e) {
-        // Some engines mark these non-configurable; the resize re-dispatch
-        // below is the fallback and is harmless if the override took.
-        console.warn("Could not override innerWidth/innerHeight:", e);
-      }
-    })();
 
     function unityShowBanner(msg, type) {
       var warningBanner = document.querySelector("#unity-warning");
@@ -226,15 +187,11 @@
     script.onload = () => {
       createUnityInstance(canvas, config, (progress) => {
         document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
-      }).then((instance) => {
-        unityInstance = instance;
+      }).then((unityInstance) => {
         document.querySelector("#unity-loading-bar").style.display = "none";
         document.querySelector("#unity-fullscreen-button").onclick = () => {
           unityInstance.SetFullscreen(1);
         };
-        // Re-measure once the engine is live so the drawing buffer matches
-        // the visible viewport from the very first frame.
-        scheduleResize();
       }).catch((message) => {
         alert(message);
       });
@@ -242,85 +199,46 @@
 
     document.body.appendChild(script);
 
-    // --- Viewport sizing --------------------------------------------------
-    // Secondary consistency measure supporting the innerWidth/innerHeight fix
-    // at the top of this script: size the canvas explicitly to the layout
-    // viewport (in px, overriding the TemplateData 100%/vh rules) so the canvas
-    // render box matches the Screen size Unity now reads. Also re-dispatch
-    // "resize" after the viewport settles so Unity re-reads the corrected size
-    // once the post-rotation layout is final.
-    // Guards against re-entrancy: applyViewportSize() dispatches a synthetic
-    // "resize" (Unity 6 listens to window "resize" to re-sync its canvas), but
-    // our own handleOrientation also listens to "resize" — without this flag
-    // the two would recurse infinitely.
-    var suppressResizeHandler = false;
-
-    // Single source of truth for size: the layout viewport. This is the same
-    // value we now feed Unity via the innerWidth/innerHeight override above, so
-    // the canvas box and Unity's internal Screen size stay identical -> no
-    // input offset. (documentElement.client* updates correctly on iOS
-    // standalone rotation, unlike the native window.innerHeight.)
-    function getViewportSize() {
-      var el = document.documentElement;
-      return {
-        w: Math.round(el.clientWidth || window.screen.width),
-        h: Math.round(el.clientHeight || window.screen.height)
-      };
-    }
-
-    function applyViewportSize() {
-      var size = getViewportSize();
-      var container = document.getElementById("unity-container");
-      // Inline px styles win over the TemplateData stylesheet's 100%/vh rules.
-      container.style.width = size.w + "px";
-      container.style.height = size.h + "px";
-      canvas.style.width = size.w + "px";
-      canvas.style.height = size.h + "px";
-      // Nudge Unity to re-read its canvas rect / drawing buffer. Unity 6
-      // re-syncs the canvas on the window "resize" event.
-      suppressResizeHandler = true;
-      window.dispatchEvent(new Event("resize"));
-      suppressResizeHandler = false;
-    }
-
-    // orientationchange/resize fire BEFORE the browser finishes updating the
-    // viewport dimensions, so a single synchronous read gets stale values.
-    // Re-apply across a few frames and a short deferred pass so we settle on
-    // the correct post-rotation size.
-    function scheduleResize() {
-      applyViewportSize();
-      requestAnimationFrame(applyViewportSize);
-      requestAnimationFrame(function () { requestAnimationFrame(applyViewportSize); });
-      setTimeout(applyViewportSize, 250);
-      setTimeout(applyViewportSize, 500);
-    }
-
+    // Fix #1: show/hide only the overlay, never the Unity container.
+    // Removing the canvas from layout (display:none) makes Unity initialize
+    // against a zero-sized canvas, which corrupts the touch->screen mapping
+    // (adjustedY *= canvas.height / rect.height) and offsets every tap after
+    // rotation. The overlay already covers the screen (z-index:9999), so the
+    // canvas can stay laid out behind it.
     function handleOrientation() {
-      var overlay = document.getElementById("rotate-overlay");
-      var size = getViewportSize();
-      // Overlay (z-index 9999) covers the canvas in portrait. We do NOT hide
-      // the container with display:none anymore — a hidden canvas has a zero
-      // bounding rect, which is what corrupted the coordinate mapping when
-      // the PWA booted in portrait and was then rotated to landscape.
-      overlay.style.display = size.h > size.w ? "flex" : "none";
-      scheduleResize();
+      const overlay = document.getElementById("rotate-overlay");
+      const isPortrait = window.innerHeight > window.innerWidth;
+      overlay.style.display = isPortrait ? "flex" : "none";
     }
 
-    function onWindowResize() {
-      if (suppressResizeHandler) return; // ignore our own synthetic resize
+    // Fix #2: force iOS (especially an installed standalone PWA) to recompute
+    // the canvas geometry after the rotation has actually settled, then tell
+    // Unity to re-read the canvas size and rebuild its framebuffer. Without
+    // this, getBoundingClientRect()/canvas size stay stale from the portrait
+    // launch state and touches land offset downward in landscape.
+    function refreshUnityViewport() {
+      window.scrollTo(0, 0);
+      // Force a synchronous reflow so the next rect read is fresh.
+      void document.getElementById("unity-container").offsetHeight;
+      // Nudge Unity's own resize handler to re-sync the WebGL render target.
+      window.dispatchEvent(new Event("resize"));
+    }
+
+    function onOrientationChange() {
       handleOrientation();
-    }
-
-    window.addEventListener("resize", onWindowResize);
-    window.addEventListener("orientationchange", handleOrientation);
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", function () {
-        if (suppressResizeHandler) return;
-        scheduleResize();
+      // iOS reports stale innerWidth/innerHeight and rects immediately after
+      // the event fires, so re-sync a few times as the animation completes.
+      [50, 250, 500, 800].forEach(function (t) {
+        setTimeout(function () {
+          handleOrientation();
+          refreshUnityViewport();
+        }, t);
       });
     }
 
-    applyViewportSize();
+    window.addEventListener("resize", handleOrientation);
+    window.addEventListener("orientationchange", onOrientationChange);
+
     handleOrientation();
   </script>
 </body>
